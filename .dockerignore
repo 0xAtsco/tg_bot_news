@@ -1,0 +1,20 @@
+.venv
+__pycache__
+.pytest_cache
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
+
+# Local state and outputs
+messari_tg_bot/out
+messari_tg_bot/state.db
+
+# Local env/secrets
+.env
+messari_tg_bot/.env
+
+# Build artifacts
+out
+dist
+build

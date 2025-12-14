@@ -1,0 +1,13 @@
+services:
+  tg-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./messari_tg_bot/.env
+    volumes:
+      - ./data/state.db:/app/messari_tg_bot/state.db
+      - ./data/out:/app/messari_tg_bot/out
+      - ./messari_tg_bot/feeds.json:/app/messari_tg_bot/feeds.json:ro
+    command: ["python", "-m", "messari_tg_bot.src.main"]
