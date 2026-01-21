@@ -9,7 +9,7 @@ from email.utils import parsedate_to_datetime
 
 
 from .article_fetcher import ArticleFetcher
-from .config import Settings
+from .config import Settings, get_source_hashtag
 from .hn_client import HNClient, HNStory
 from .rss_client import RSSClient
 from .storage import Storage
@@ -30,6 +30,7 @@ class ProcessedItem:
     content: str
     item_type: str  # research | newsletter | hn
     hn_url: Optional[str] = None  # Hacker News discussion URL
+    source_url: Optional[str] = None  # Source feed URL
 
 
 class Orchestrator:
@@ -98,59 +99,66 @@ class Orchestrator:
         lookback = datetime.now(timezone.utc) - timedelta(hours=self.settings.bootstrap_lookback_hours)
         processed_count = 0
 
-        entries = self._fetch_from_urls(self.settings.research_feeds)
-        for entry in entries:
+        for feed_url in self.settings.research_feeds:
             if processed_count >= limit:
                 break
-            if self.settings.research_tags and not self._passes_filters(
-                entry, self.settings.research_tags
-            ):
-                continue
-            publish_date = self._entry_date(entry)
-            if publish_date and publish_date < lookback:
-                logger.debug("Skip (old): %s", entry.get("title"))
-                continue
+            
+            entries = self._fetch_from_url(feed_url)
+            hashtag = get_source_hashtag(feed_url)
+            
+            for entry in entries:
+                if processed_count >= limit:
+                    break
+                if self.settings.research_tags and not self._passes_filters(
+                    entry, self.settings.research_tags
+                ):
+                    continue
+                publish_date = self._entry_date(entry)
+                if publish_date and publish_date < lookback:
+                    logger.debug("Skip (old): %s", entry.get("title"))
+                    continue
 
-            entry_id = entry.get("id") or entry.get("link") or entry.get("title")
-            if not entry_id or self.storage.is_processed(entry_id):
-                continue
+                entry_id = entry.get("id") or entry.get("link") or entry.get("title")
+                if not entry_id or self.storage.is_processed(entry_id):
+                    continue
 
-            try:
-                # Get URL for full article fetch
-                url = entry.get("link") or ""
+                try:
+                    # Get URL for full article fetch
+                    url = entry.get("link") or ""
 
-                # Try to fetch full article from URL
-                full_article = None
-                if url:
-                    logger.info(f"Fetching full article from {url}")
-                    full_article = await self.article_fetcher.fetch_full_article(url)
+                    # Try to fetch full article from URL
+                    full_article = None
+                    if url:
+                        logger.info(f"Fetching full article from {url}")
+                        full_article = await self.article_fetcher.fetch_full_article(url)
 
-                # Fallback to RSS content if article fetch failed
-                if not full_article:
-                    logger.info(f"Using RSS content for research: {entry.get('title')}")
-                    full_article = self._entry_content(entry)
+                    # Fallback to RSS content if article fetch failed
+                    if not full_article:
+                        logger.info(f"Using RSS content for research: {entry.get('title')}")
+                        full_article = self._entry_content(entry)
 
-                # Translate and summarize
-                translated_full = await self.translator.translate_full_text(full_article)
-                bullets = await self.translator.summarize_to_bullets(full_article)
+                    # Translate and summarize
+                    translated_full = await self.translator.translate_full_text(full_article)
+                    bullets = await self.translator.summarize_to_bullets(full_article)
 
-                item = ProcessedItem(
-                    item_id=entry_id,
-                    slug=self._slug(entry),
-                    title=entry.get("title") or "Без названия",
-                    url=entry.get("link") or "",
-                    publish_date=publish_date or datetime.now(timezone.utc),
-                    content=translated_full,
-                    item_type="research",
-                )
+                    item = ProcessedItem(
+                        item_id=entry_id,
+                        slug=self._slug(entry),
+                        title=entry.get("title") or "Без названия",
+                        url=entry.get("link") or "",
+                        publish_date=publish_date or datetime.now(timezone.utc),
+                        content=translated_full,
+                        item_type="research",
+                        source_url=feed_url,
+                    )
 
-                await self._deliver_item(item, bullets)
-                if not self.telegram_client.dry_run:
-                    self.storage.mark_processed(item.item_id, item.item_type, item.publish_date.isoformat())
-                processed_count += 1
-            except Exception as e:
-                logger.error(f"Failed to process research entry '{entry.get('title')}': {e}", exc_info=True)
-                continue
+                    await self._deliver_item(item, bullets, hashtag)
+                    if not self.telegram_client.dry_run:
+                        self.storage.mark_processed(item.item_id, item.item_type, item.publish_date.isoformat())
+                    processed_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to process research entry '{entry.get('title')}': {e}", exc_info=True)
+                    continue
 
         return processed_count
 
@@ -158,59 +166,66 @@ class Orchestrator:
         lookback = datetime.now(timezone.utc) - timedelta(hours=self.settings.bootstrap_lookback_hours)
         processed_count = 0
 
-        entries = self._fetch_from_urls(self.settings.newsletter_feeds)
-        for entry in entries:
+        for feed_url in self.settings.newsletter_feeds:
             if processed_count >= limit:
                 break
-            if self.settings.newsletter_source_types and not self._passes_filters(
-                entry, self.settings.newsletter_source_types
-            ):
-                continue
-            publish_date = self._entry_date(entry)
-            if publish_date and publish_date < lookback:
-                logger.debug("Skip (old): %s", entry.get("title"))
-                continue
+            
+            entries = self._fetch_from_url(feed_url)
+            hashtag = get_source_hashtag(feed_url)
+            
+            for entry in entries:
+                if processed_count >= limit:
+                    break
+                if self.settings.newsletter_source_types and not self._passes_filters(
+                    entry, self.settings.newsletter_source_types
+                ):
+                    continue
+                publish_date = self._entry_date(entry)
+                if publish_date and publish_date < lookback:
+                    logger.debug("Skip (old): %s", entry.get("title"))
+                    continue
 
-            entry_id = entry.get("id") or entry.get("link") or entry.get("title")
-            if not entry_id or self.storage.is_processed(entry_id):
-                continue
+                entry_id = entry.get("id") or entry.get("link") or entry.get("title")
+                if not entry_id or self.storage.is_processed(entry_id):
+                    continue
 
-            try:
-                # Get URL for full article fetch
-                url = entry.get("link") or ""
+                try:
+                    # Get URL for full article fetch
+                    url = entry.get("link") or ""
 
-                # Try to fetch full article from URL
-                full_article = None
-                if url:
-                    logger.info(f"Fetching full article from {url}")
-                    full_article = await self.article_fetcher.fetch_full_article(url)
+                    # Try to fetch full article from URL
+                    full_article = None
+                    if url:
+                        logger.info(f"Fetching full article from {url}")
+                        full_article = await self.article_fetcher.fetch_full_article(url)
 
-                # Fallback to RSS content if article fetch failed
-                if not full_article:
-                    logger.info(f"Using RSS content for newsletter: {entry.get('title')}")
-                    full_article = self._entry_content(entry)
+                    # Fallback to RSS content if article fetch failed
+                    if not full_article:
+                        logger.info(f"Using RSS content for newsletter: {entry.get('title')}")
+                        full_article = self._entry_content(entry)
 
-                # Translate and summarize
-                translated_full = await self.translator.translate_full_text(full_article)
-                bullets = await self.translator.summarize_to_bullets(full_article)
+                    # Translate and summarize
+                    translated_full = await self.translator.translate_full_text(full_article)
+                    bullets = await self.translator.summarize_to_bullets(full_article)
 
-                item = ProcessedItem(
-                    item_id=entry_id,
-                    slug=self._slug(entry),
-                    title=entry.get("title") or "Без названия",
-                    url=entry.get("link") or "",
-                    publish_date=publish_date or datetime.now(timezone.utc),
-                    content=translated_full,
-                    item_type="newsletter",
-                )
+                    item = ProcessedItem(
+                        item_id=entry_id,
+                        slug=self._slug(entry),
+                        title=entry.get("title") or "Без названия",
+                        url=entry.get("link") or "",
+                        publish_date=publish_date or datetime.now(timezone.utc),
+                        content=translated_full,
+                        item_type="newsletter",
+                        source_url=feed_url,
+                    )
 
-                await self._deliver_item(item, bullets)
-                if not self.telegram_client.dry_run:
-                    self.storage.mark_processed(item.item_id, item.item_type, item.publish_date.isoformat())
-                processed_count += 1
-            except Exception as e:
-                logger.error(f"Failed to process newsletter entry '{entry.get('title')}': {e}", exc_info=True)
-                continue
+                    await self._deliver_item(item, bullets, hashtag)
+                    if not self.telegram_client.dry_run:
+                        self.storage.mark_processed(item.item_id, item.item_type, item.publish_date.isoformat())
+                    processed_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to process newsletter entry '{entry.get('title')}': {e}", exc_info=True)
+                    continue
 
         return processed_count
 
@@ -220,6 +235,7 @@ class Orchestrator:
 
         processed_count = 0
         stories = self.hn_client.fetch_newest_stories(limit)
+        hashtag = get_source_hashtag("https://news.ycombinator.com/newest")
 
         for story in stories:
             if processed_count >= limit:
@@ -255,9 +271,10 @@ class Orchestrator:
                     content=translated_full,
                     item_type="hn",
                     hn_url=hn_url,
+                    source_url="https://news.ycombinator.com/newest",
                 )
 
-                await self._deliver_item(item, bullets)
+                await self._deliver_item(item, bullets, hashtag)
                 if not self.telegram_client.dry_run:
                     self.storage.mark_processed(item.item_id, item.item_type, item.publish_date.isoformat())
                 processed_count += 1
@@ -267,21 +284,14 @@ class Orchestrator:
 
         return processed_count
 
-    async def _deliver_item(self, item: ProcessedItem, bullets: List[str]) -> None:
+    async def _deliver_item(self, item: ProcessedItem, bullets: List[str], hashtag: str) -> None:
         # Check for error patterns in summary
         if self._is_error_summary(bullets):
             logger.info(f"Skipping item '{item.title}' due to error summary")
             return
 
-        if item.item_type == "research":
-            header = "#Research"
-        elif item.item_type == "newsletter":
-            header = "#Newsletter"
-        else:
-            header = "#HackerNews"
-
         bullet_lines = "\n".join(f"- {bullet}" for bullet in bullets[:7])
-        message = f"{header}\nTLDR (RU):\n{bullet_lines}"
+        message = f"{hashtag}\nTLDR (RU):\n{bullet_lines}"
         
         # Add URLs
         if item.item_type == "hn" and item.hn_url and item.hn_url != item.url:
@@ -331,6 +341,23 @@ class Orchestrator:
     def _passes_filters(entry: dict, keywords: List[str]) -> bool:
         haystack = f"{entry.get('title','')} {entry.get('summary','')} {entry.get('description','')}".lower()
         return any(keyword.lower() in haystack for keyword in keywords)
+
+    def _fetch_from_url(self, url: str) -> List[dict]:
+        try:
+            entries = self.rss_client.fetch_entries(url)
+            if not entries:
+                logger.warning("Feed %s returned 0 entries", url)
+            else:
+                first_date = self._entry_date(entries[0])
+                logger.info(
+                    "Feed %s latest date: %s",
+                    url,
+                    first_date.isoformat() if first_date else "unknown",
+                )
+            return entries
+        except Exception:
+            logger.exception("Failed to fetch feed %s", url)
+            return []
 
     def _fetch_from_urls(self, urls: List[str]) -> List[dict]:
         items: List[dict] = []

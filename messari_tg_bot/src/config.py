@@ -2,9 +2,31 @@ import os
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 from dotenv import load_dotenv
+
+
+# Source URL to hashtag mapping
+SOURCE_HASHTAGS: Dict[str, str] = {
+    "messari.substack.com": "#Messari",
+    "anchor.fm": "#AnchorFm",
+    "defi0xjeff.substack.com": "#DeFi0xJeff",
+    "degencamp.substack.com": "#DegenCamp",
+    "no-bs-ai.substack.com": "#NoBSAI",
+    "a16zcrypto.substack.com": "#a16zCrypto",
+    "nystrom.substack.com": "#Nystrom",
+    "cryptocomresearch.substack.com": "#CryptoCom",
+    "hacker-news": "#HackerNews",
+}
+
+
+def get_source_hashtag(url: str) -> str:
+    """Get hashtag for a source URL."""
+    for source_domain, hashtag in SOURCE_HASHTAGS.items():
+        if source_domain in url.lower():
+            return hashtag
+    return "#Unknown"
 
 
 @dataclass
