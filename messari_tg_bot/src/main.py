@@ -5,7 +5,6 @@ from pathlib import Path
 
 from .article_fetcher import ArticleFetcher
 from .config import load_settings
-from .docx_renderer import DocxRenderer
 from .hn_client import HNClient
 from .orchestrator import Orchestrator
 from .rss_client import RSSClient
@@ -29,7 +28,6 @@ async def async_main() -> None:
 
     project_root = Path(__file__).resolve().parent.parent
     db_path = project_root / "state.db"
-    output_dir = project_root / "out"
 
     storage = Storage(db_path=db_path)
     rss_client = RSSClient()
@@ -40,7 +38,6 @@ async def async_main() -> None:
         translate_model=settings.openrouter_translate_model,
         tldr_model=settings.openrouter_tldr_model,
     )
-    docx_renderer = DocxRenderer(output_dir=output_dir)
     telegram_client = TelegramClient(
         bot_token=settings.telegram_bot_token, chat_id=settings.telegram_chat_id, dry_run=args.dry_run
     )
@@ -52,7 +49,6 @@ async def async_main() -> None:
         rss_client=rss_client,
         article_fetcher=article_fetcher,
         translator=translator,
-        docx_renderer=docx_renderer,
         telegram_client=telegram_client,
         hn_client=hn_client,
     )

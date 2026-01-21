@@ -10,7 +10,6 @@ from email.utils import parsedate_to_datetime
 
 from .article_fetcher import ArticleFetcher
 from .config import Settings
-from .docx_renderer import ContentPayload, DocxRenderer
 from .hn_client import HNClient, HNStory
 from .rss_client import RSSClient
 from .storage import Storage
@@ -40,7 +39,6 @@ class Orchestrator:
         rss_client: RSSClient,
         article_fetcher: ArticleFetcher,
         translator: Translator,
-        docx_renderer: DocxRenderer,
         telegram_client: TelegramClient,
         hn_client: Optional[HNClient] = None,
     ):
@@ -49,7 +47,6 @@ class Orchestrator:
         self.rss_client = rss_client
         self.article_fetcher = article_fetcher
         self.translator = translator
-        self.docx_renderer = docx_renderer
         self.telegram_client = telegram_client
         self.hn_client = hn_client
 
@@ -261,17 +258,6 @@ class Orchestrator:
         message = f"{header}\nTLDR (RU):\n{bullet_lines}\nOriginal: {item.url}"
 
         await self.telegram_client.send_text(message)
-        payload = ContentPayload(
-            item_id=item.item_id,
-            slug=item.slug,
-            title=item.title,
-            url=item.url,
-            publish_date=item.publish_date,
-            item_type=item.item_type,  # type: ignore[arg-type]
-            translated_content=item.content,
-        )
-        docx_path = self.docx_renderer.render(payload)
-        await self.telegram_client.send_document(docx_path)
 
     @staticmethod
     def _entry_date(entry: dict) -> Optional[datetime]:
