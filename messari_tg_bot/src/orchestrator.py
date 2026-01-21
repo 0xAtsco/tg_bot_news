@@ -29,6 +29,7 @@ class ProcessedItem:
     publish_date: datetime
     content: str
     item_type: str  # research | newsletter | hn
+    hn_url: Optional[str] = None  # Hacker News discussion URL
 
 
 class Orchestrator:
@@ -49,6 +50,24 @@ class Orchestrator:
         self.translator = translator
         self.telegram_client = telegram_client
         self.hn_client = hn_client
+
+    def _is_error_summary(self, bullets: List[str]) -> bool:
+        """Check if bullets contain error messages."""
+        error_patterns = [
+            "произошла ошибка при загрузке",
+            "необходимо перезагрузить страницу",
+            "для изменения настроек уведомлений требуется авторизация",
+            "error occurred",
+            "please refresh",
+            "authorization required"
+        ]
+        
+        combined_text = " ".join(bullets).lower()
+        for pattern in error_patterns:
+            if pattern in combined_text:
+                logger.warning(f"Skipping item due to error pattern detected: {pattern}")
+                return True
+        return False
 
     async def run_forever(self) -> None:
         while True:
@@ -211,7 +230,8 @@ class Orchestrator:
                 continue
 
             try:
-                url = story.url or f"https://news.ycombinator.com/item?id={story.id}"
+                hn_url = f"https://news.ycombinator.com/item?id={story.id}"
+                url = story.url or hn_url
 
                 full_article = None
                 if story.url:
@@ -234,6 +254,7 @@ class Orchestrator:
                     publish_date=publish_date,
                     content=translated_full,
                     item_type="hn",
+                    hn_url=hn_url,
                 )
 
                 await self._deliver_item(item, bullets)
@@ -247,6 +268,11 @@ class Orchestrator:
         return processed_count
 
     async def _deliver_item(self, item: ProcessedItem, bullets: List[str]) -> None:
+        # Check for error patterns in summary
+        if self._is_error_summary(bullets):
+            logger.info(f"Skipping item '{item.title}' due to error summary")
+            return
+
         if item.item_type == "research":
             header = "#Research"
         elif item.item_type == "newsletter":
@@ -255,9 +281,20 @@ class Orchestrator:
             header = "#HackerNews"
 
         bullet_lines = "\n".join(f"- {bullet}" for bullet in bullets[:7])
-        message = f"{header}\nTLDR (RU):\n{bullet_lines}\nOriginal: {item.url}"
+        message = f"{header}\nTLDR (RU):\n{bullet_lines}"
+        
+        # Add URLs
+        if item.item_type == "hn" and item.hn_url and item.hn_url != item.url:
+            message += f"\n\nOriginal: {item.url}\nHN Discussion: {item.hn_url}"
+        else:
+            message += f"\n\nOriginal: {item.url}"
 
-        await self.telegram_client.send_text(message)
+        # Send to chat
+        await self.telegram_client.send_text(message, to_channel=False)
+
+        # Send to channel if configured
+        if self.settings.telegram_channel_id:
+            await self.telegram_client.send_text(message, to_channel=True)
 
     @staticmethod
     def _entry_date(entry: dict) -> Optional[datetime]:

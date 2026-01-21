@@ -39,7 +39,10 @@ async def async_main() -> None:
         tldr_model=settings.openrouter_tldr_model,
     )
     telegram_client = TelegramClient(
-        bot_token=settings.telegram_bot_token, chat_id=settings.telegram_chat_id, dry_run=args.dry_run
+        bot_token=settings.telegram_bot_token,
+        chat_id=settings.telegram_chat_id,
+        channel_id=settings.telegram_channel_id,
+        dry_run=args.dry_run
     )
     hn_client = HNClient() if settings.hn_enabled else None
 

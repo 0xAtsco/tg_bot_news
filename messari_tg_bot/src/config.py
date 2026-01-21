@@ -2,7 +2,7 @@ import os
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from dotenv import load_dotenv
 
@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 class Settings:
     telegram_bot_token: str
     telegram_chat_id: str
+    telegram_channel_id: Optional[str] = None
     research_feeds: List[str] = field(default_factory=list)
     newsletter_feeds: List[str] = field(default_factory=list)
     openrouter_api_key: str = ""
@@ -60,6 +61,7 @@ def load_settings() -> Settings:
     return Settings(
         telegram_bot_token=os.environ["TELEGRAM_BOT_TOKEN"],
         telegram_chat_id=os.environ["TELEGRAM_CHAT_ID"],
+        telegram_channel_id=os.getenv("TELEGRAM_CHANNEL_ID"),
         research_feeds=research_feeds,
         newsletter_feeds=newsletter_feeds,
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
