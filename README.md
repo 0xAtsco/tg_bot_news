@@ -1,77 +1,72 @@
-# Telegram Bot для Substack постов
+# Telegram News Bot
 
-Бот автоматически получает посты из Substack, переводит их на русский язык, создает TLDR и отправляет в ваш Telegram.
+Automatically fetches articles from RSS feeds, Hacker News, and other sources, translates them to Russian, creates TLDR summaries, and posts to your Telegram chat and channel.
 
-## Что делает бот
+## Features
 
-1. Получает посты из нескольких Substack фидов (список в `messari_tg_bot/feeds.json`)
-2. **Загружает полный текст статьи** с оригинального URL (не только summary из RSS)
-3. Переводит полную статью на русский язык через OpenRouter API
-4. Создает краткое резюме (TLDR) из 3-7 пунктов на русском
-5. Отправляет в Telegram:
-   - Текстовое сообщение с TLDR и ссылкой на оригинал
-   - **DOCX файл с полным переводом статьи** (красиво отформатированный)
+1. **Multiple Sources**: Fetches from RSS feeds (Substack, blogs) and Hacker News
+2. **Full Article Fetching**: Downloads complete article content (not just RSS summary)
+3. **Translation**: Translates full articles to Russian via OpenRouter API
+4. **TLDR Summaries**: Creates 3-7 bullet point summaries in Russian
+5. **Dual Posting**: Sends to both personal chat and Telegram channel
+6. **Error Handling**: Skips posts with error patterns (load errors, authorization pages)
+7. **Hacker News Integration**: Includes HN discussion links for HN posts
 
-## Надежность
+## Message Format
 
-Бот имеет встроенную защиту от временных проблем:
-- **Retry логика для OpenRouter API**: автоматически повторяет запросы до 3 раз с экспоненциальной задержкой (1с, 2с, 4с)
-- **Retry логика для Telegram API**: автоматически повторяет отправку сообщений при сбоях сети
-- **Retry логика для загрузки статей**: повторяет попытки получить полный текст при сетевых ошибках
-- **Обработка ошибок**: если один пост не удалось обработать, бот пропускает его и продолжает работу
-- **Устойчивость к сбоям RSS**: если фид недоступен, бот просто пропускает его
-- **Fallback**: если не удалось загрузить полную статью с URL, использует контент из RSS
+### Regular Posts
+```
+#Newsletter
+TLDR (RU):
+- First bullet point...
+- Second bullet point...
+- Third bullet point...
 
-## Быстрый старт
-
-### 1. Запуск бота
-
-Бот уже настроен и готов к работе. Запустите его:
-
-```bash
-# Активировать виртуальное окружение
-source .venv/bin/activate
-
-# Запустить один раз (обработает до 10 постов за последние 7 дней)
-python -m messari_tg_bot.src.main --once
-
-# Запустить в режиме цикла (каждые 10 минут проверяет новые посты)
-python -m messari_tg_bot.src.main
+Original: https://example.com/article
 ```
 
-### 2. Тестовый запуск (без отправки в Telegram)
+### Hacker News Posts
+```
+#HackerNews
+TLDR (RU):
+- First bullet point...
+- Second bullet point...
 
-```bash
-# Dry-run режим - показывает что будет отправлено, но не отправляет
-python -m messari_tg_bot.src.main --once --dry-run
+Original: https://example.com/article
+HN Discussion: https://news.ycombinator.com/item?id=12345
 ```
 
-## Настройки
+## Quick Start with Docker
 
-Все настройки в файле `messari_tg_bot/.env`:
+### 1. Configure Environment
+
+Edit `messari_tg_bot/.env`:
 
 ```env
-# Telegram настройки (уже настроены)
-TELEGRAM_BOT_TOKEN=ваш_токен
-TELEGRAM_CHAT_ID=ваш_chat_id
+# Telegram Bot Configuration
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+TELEGRAM_CHANNEL_ID=@your_channel  # Optional, for public channel posting
 
-# OpenRouter API для перевода (уже настроен)
-OPENROUTER_API_KEY=ваш_ключ
-TRANSLATOR_MODE=prod  # prod - использует API, dev - заглушки
+# OpenRouter API Configuration
+OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_TRANSLATE_MODEL=mistralai/devstral-2512:free
+OPENROUTER_TLDR_MODEL=mistralai/devstral-2512:free
 
-# Настройки работы бота
-POLL_INTERVAL_MIN=10          # Интервал проверки новых постов (в минутах)
-BOOTSTRAP_LOOKBACK_HOURS=168  # Искать посты за последние 7 дней
-MAX_ITEMS_PER_RUN=10          # Макс. постов за один запуск
+# Bot Settings
+POLL_INTERVAL_MIN=10          # Check interval in minutes
+BOOTSTRAP_LOOKBACK_HOURS=168  # Look back period in hours
+MAX_ITEMS_PER_RUN=10          # Max items per run
+TRANSLATOR_MODE=prod          # prod=real translation, dev=stubs
 
-# Модели для перевода
-OPENROUTER_TRANSLATE_MODEL=mistralai/mixtral-8x7b-instruct
-OPENROUTER_TLDR_MODEL=mistralai/mixtral-8x7b-instruct
+# Hacker News Integration
+HN_ENABLED=true
+HN_MAX_STORIES=5
 ```
 
-## Список Substack фидов
+### 2. Configure Feeds
 
-Редактируйте `messari_tg_bot/feeds.json`:
+Edit `messari_tg_bot/feeds.json`:
 
 ```json
 {
@@ -81,118 +76,161 @@ OPENROUTER_TLDR_MODEL=mistralai/mixtral-8x7b-instruct
   "newsletter": [
     "https://defi0xjeff.substack.com/feed",
     "https://a16zcrypto.substack.com/feed",
-    ...
+    "https://cryptocomresearch.substack.com/feed",
+    "https://nystrom.substack.com/feed"
   ]
 }
 ```
 
-## Полезные команды
+### 3. Run with Docker Compose
 
 ```bash
-# Очистить базу данных (чтобы повторно обработать старые посты)
-rm messari_tg_bot/state.db
-
-# Посмотреть созданные DOCX файлы
-ls -lh messari_tg_bot/out/
-
-# Посмотреть логи последнего запуска
-python -m messari_tg_bot.src.main --once 2>&1 | tail -50
+docker-compose up -d --build
 ```
 
-## Запуск в фоне (для постоянной работы)
-
-### Вариант 1: screen
+### 4. View Logs
 
 ```bash
-# Запустить в screen
-screen -S telegram_bot
-source .venv/bin/activate
-python -m messari_tg_bot.src.main
-
-# Отключиться: Ctrl+A, затем D
-# Подключиться обратно: screen -r telegram_bot
+docker-compose logs -f
 ```
 
-### Вариант 2: nohup
+## Error Handling
+
+The bot automatically skips posts with error patterns in summaries:
+- "произошла ошибка при загрузке" (loading error)
+- "необходимо перезагрузить страницу" (please refresh page)
+- "для изменения настроек уведомлений требуется авторизация" (authorization required)
+- "error occurred", "please refresh", "authorization required"
+
+## Reliability Features
+
+- **Retry Logic**: Up to 3 retries with exponential backoff (1s, 2s, 4s) for:
+  - OpenRouter API calls
+  - Telegram API messages
+  - Article fetching
+- **Graceful Failure**: If one post fails, the bot continues with others
+- **RSS Resilience**: Skips unavailable feeds without crashing
+- **Fallback**: Uses RSS content if full article fetch fails
+
+## Advanced Configuration
+
+### Add Bot to Channel
+
+To post to a Telegram channel:
+
+1. Add your bot as an administrator to the channel
+2. Grant "Posting Messages" permission
+3. Set `TELEGRAM_CHANNEL_ID=@your_channel` in `.env`
+
+### Test Mode (Dry Run)
 
 ```bash
-nohup python -m messari_tg_bot.src.main > bot.log 2>&1 &
+docker-compose run tg-bot python -m messari_tg_bot.src.main --once --dry-run
 ```
 
-### Вариант 3: systemd (Linux)
+### Run Once
 
-Создайте файл `/etc/systemd/system/telegram-bot.service`:
-
-```ini
-[Unit]
-Description=Telegram Substack Bot
-After=network.target
-
-[Service]
-Type=simple
-User=ваш_пользователь
-WorkingDirectory=/Users/absq/Desktop/deAI/tg_bot_news
-ExecStart=/Users/absq/Desktop/deAI/tg_bot_news/.venv/bin/python -m messari_tg_bot.src.main
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Затем:
 ```bash
-sudo systemctl enable telegram-bot
-sudo systemctl start telegram-bot
-sudo systemctl status telegram-bot
+docker-compose run tg-bot python -m messari_tg_bot.src.main --once
 ```
 
-## Структура проекта
+## Project Structure
 
 ```
 tg_bot_news/
 ├── messari_tg_bot/
-│   ├── .env                  # Настройки (токены, API ключи)
-│   ├── feeds.json            # Список RSS/Atom фидов
-│   ├── state.db              # База данных (дедупликация)
-│   ├── out/                  # Созданные DOCX файлы
+│   ├── .env                  # Configuration (tokens, API keys)
+│   ├── feeds.json            # RSS/Atom feed list
+│   ├── state.db              # SQLite database (deduplication)
+│   ├── data/
+│   │   └── state.db         # Persistent state
 │   └── src/
-│       ├── main.py           # Точка входа
-│       ├── orchestrator.py   # Основная логика
-│       ├── rss_client.py     # Получение RSS/Atom
-│       ├── translator.py     # Перевод через OpenRouter
-│       ├── telegram_client.py # Отправка в Telegram
-│       └── docx_renderer.py  # Создание DOCX файлов
-└── .venv/                    # Виртуальное окружение Python
+│       ├── main.py           # Entry point
+│       ├── orchestrator.py   # Main logic
+│       ├── config.py         # Configuration loader
+│       ├── rss_client.py     # RSS/Atom fetching
+│       ├── hn_client.py      # Hacker News API client
+│       ├── translator.py     # OpenRouter translation
+│       ├── article_fetcher.py # Article content fetching
+│       └── telegram_client.py # Telegram posting
+├── docker-compose.yml       # Docker Compose configuration
+├── Dockerfile               # Docker image definition
+└── requirements.txt         # Python dependencies
 ```
 
-## Формат сообщений в Telegram
+## Environment Variables
 
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `TELEGRAM_BOT_TOKEN` | Bot token from @BotFather | Yes |
+| `TELEGRAM_CHAT_ID` | Personal chat ID | Yes |
+| `TELEGRAM_CHANNEL_ID` | Channel username (@channel) | No |
+| `OPENROUTER_API_KEY` | OpenRouter API key | Yes |
+| `TRANSLATOR_MODE` | `prod` or `dev` | No |
+| `POLL_INTERVAL_MIN` | Polling interval in minutes | No |
+| `BOOTSTRAP_LOOKBACK_HOURS` | Initial lookback period | No |
+| `MAX_ITEMS_PER_RUN` | Max items per run | No |
+| `HN_ENABLED` | Enable Hacker News | No |
+| `HN_MAX_STORIES` | Max HN stories per run | No |
+
+## API Models
+
+Recommended OpenRouter models (free tier available):
+
+```env
+OPENROUTER_TRANSLATE_MODEL=mistralai/devstral-2512:free
+OPENROUTER_TLDR_MODEL=mistralai/devstral-2512:free
 ```
-#Newsletter
-TLDR (RU):
-- Первый пункт резюме...
-- Второй пункт резюме...
-- Третий пункт резюме...
-Original: https://example.substack.com/p/post-title
 
-+ DOCX файл с полным переводом
+Other options:
+- `mistralai/mixtral-8x7b-instruct`
+- `anthropic/claude-3-haiku`
+- `google/gemini-pro`
+
+## Troubleshooting
+
+### Bot can't post to channel
+- Add bot as channel administrator
+- Grant "Posting Messages" permission
+- Verify `TELEGRAM_CHANNEL_ID` format (@channelname)
+
+### Articles not translating
+- Check OpenRouter API key is valid
+- Verify `TRANSLATOR_MODE=prod`
+- Check OpenRouter API credits
+
+### Hacker News not working
+- Verify `HN_ENABLED=true`
+- Check logs for HN API errors
+
+### Reset database
+```bash
+rm messari_tg_bot/state.db
+docker-compose restart
 ```
 
-## Форматирование DOCX
+## Development
 
-Созданные DOCX файлы имеют профессиональное форматирование:
-- Заголовок статьи (крупный, жирный шрифт)
-- Метаданные (дата публикации, тип, ссылка на оригинал)
-- Структурированный контент:
-  - Заголовки разделов
-  - Списки (маркированные и нумерованные)
-  - Ссылки (синие, подчеркнутые)
-  - Временные метки (для подкастов)
-- Читаемые абзацы с нормальным межстрочным интервалом
+### Run locally
 
-## Поддержка
+```bash
+# Create virtual environment
+python -m venv .venv
+source .venv/bin/activate
 
-Проект работает и готов к использованию! Если нужны изменения:
-- Изменить список фидов: отредактируйте `messari_tg_bot/feeds.json`
-- Изменить настройки: отредактируйте `messari_tg_bot/.env`
-- Изменить качество перевода: измените модели в `.env` файле
+# Install dependencies
+pip install -r messari_tg_bot/requirements.txt
+
+# Run
+python -m messari_tg_bot.src.main
+```
+
+### Run tests
+
+```bash
+pytest messari_tg_bot/tests/
+```
+
+## License
+
+MIT License
