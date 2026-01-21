@@ -17,8 +17,33 @@ SOURCE_HASHTAGS: Dict[str, str] = {
     "a16zcrypto.substack.com": "#a16zCrypto",
     "nystrom.substack.com": "#Nystrom",
     "cryptocomresearch.substack.com": "#CryptoCom",
-    "hacker-news": "#HackerNews",
+    "ycombinator.com": "#HackerNews",
 }
+
+# Keywords to filter out from Hacker News (political, music, etc.)
+HN_FILTER_KEYWORDS = [
+    "trump", "politics", "political", "congress", "senate", "president",
+    "election", "republican", "democrat", "biden", "harris",
+    "music", "song", "album", "band", "concert", "spotify",
+    "movie", "film", "actor", "actress", "hollywood",
+    "sports", "football", "basketball", "soccer", "baseball",
+    "crypto", "bitcoin", "ethereum", "blockchain", "defi", "nft",
+    "finance", "stock", "market", "trading", "investment",
+]
+
+# Keywords that indicate AI/tech content
+HN_AI_KEYWORDS = [
+    "ai", "artificial intelligence", "machine learning", "ml", "llm",
+    "gpt", "chatgpt", "openai", "anthropic", "claude", "gemini",
+    "deep learning", "neural", "model", "training", "inference",
+    "nlp", "computer vision", "robotics", "automation",
+    "code", "programming", "development", "software", "developer",
+    "python", "javascript", "rust", "go", "typescript",
+    "database", "api", "infrastructure", "cloud", "devops",
+    "security", "privacy", "encryption", "cyber",
+    "quantum", "compute", "chip", "gpu", "nvidia", "amd",
+    "open source", "linux", "kubernetes", "docker",
+]
 
 
 def get_source_hashtag(url: str) -> str:
@@ -27,6 +52,20 @@ def get_source_hashtag(url: str) -> str:
         if source_domain in url.lower():
             return hashtag
     return "#Unknown"
+
+
+def should_skip_hn_post(title: str) -> bool:
+    """Check if HN post should be skipped based on filters."""
+    title_lower = title.lower()
+    
+    # Check for filter keywords (politics, music, etc.)
+    for keyword in HN_FILTER_KEYWORDS:
+        if keyword in title_lower:
+            return True
+    
+    # If no AI/tech keywords found, skip
+    has_ai_keyword = any(keyword in title_lower for keyword in HN_AI_KEYWORDS)
+    return not has_ai_keyword
 
 
 @dataclass
@@ -49,7 +88,7 @@ class Settings:
     translator_mode: str = "dev"
     environment: str = "dev"
     hn_enabled: bool = False
-    hn_max_stories: int = 5
+    hn_max_stories: int =5
 
 
 def _parse_csv(value: str) -> List[str]:

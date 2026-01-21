@@ -9,7 +9,7 @@ from email.utils import parsedate_to_datetime
 
 
 from .article_fetcher import ArticleFetcher
-from .config import Settings, get_source_hashtag
+from .config import Settings, get_source_hashtag, should_skip_hn_post
 from .hn_client import HNClient, HNStory
 from .rss_client import RSSClient
 from .storage import Storage
@@ -119,7 +119,7 @@ class Orchestrator:
                     continue
 
                 entry_id = entry.get("id") or entry.get("link") or entry.get("title")
-                if not entry_id or self.storage.is_processed(entry_id):
+                if self.storage.is_processed(entry_id):
                     continue
 
                 try:
@@ -186,7 +186,7 @@ class Orchestrator:
                     continue
 
                 entry_id = entry.get("id") or entry.get("link") or entry.get("title")
-                if not entry_id or self.storage.is_processed(entry_id):
+                if self.storage.is_processed(entry_id):
                     continue
 
                 try:
@@ -243,6 +243,11 @@ class Orchestrator:
 
             entry_id = f"hn_{story.id}"
             if self.storage.is_processed(entry_id):
+                continue
+
+            # Filter out non-AI/tech posts
+            if should_skip_hn_post(story.title or ""):
+                logger.info(f"Skipping HN story (filtered): {story.title}")
                 continue
 
             try:
