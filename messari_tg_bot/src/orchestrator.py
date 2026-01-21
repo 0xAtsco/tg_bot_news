@@ -11,6 +11,7 @@ from email.utils import parsedate_to_datetime
 from .article_fetcher import ArticleFetcher
 from .config import Settings
 from .docx_renderer import ContentPayload, DocxRenderer
+from .hn_client import HNClient, HNStory
 from .rss_client import RSSClient
 from .storage import Storage
 from .telegram_client import TelegramClient
@@ -28,7 +29,7 @@ class ProcessedItem:
     url: str
     publish_date: datetime
     content: str
-    item_type: str  # research | newsletter
+    item_type: str  # research | newsletter | hn
 
 
 class Orchestrator:
@@ -41,6 +42,7 @@ class Orchestrator:
         translator: Translator,
         docx_renderer: DocxRenderer,
         telegram_client: TelegramClient,
+        hn_client: Optional[HNClient] = None,
     ):
         self.settings = settings
         self.storage = storage
@@ -49,6 +51,7 @@ class Orchestrator:
         self.translator = translator
         self.docx_renderer = docx_renderer
         self.telegram_client = telegram_client
+        self.hn_client = hn_client
 
     async def run_forever(self) -> None:
         while True:
@@ -67,6 +70,11 @@ class Orchestrator:
         if remaining > 0:
             processed_news = await self._process_newsletters(remaining)
             processed_total += processed_news
+            remaining -= processed_news
+
+        if remaining > 0 and self.hn_client and self.settings.hn_enabled:
+            processed_hn = await self._process_hacker_news(remaining)
+            processed_total += processed_hn
 
         logger.info("Poll cycle complete; processed %s items", processed_total)
 
@@ -190,8 +198,65 @@ class Orchestrator:
 
         return processed_count
 
+    async def _process_hacker_news(self, limit: int) -> int:
+        if not self.hn_client:
+            return 0
+
+        processed_count = 0
+        stories = self.hn_client.fetch_newest_stories(limit)
+
+        for story in stories:
+            if processed_count >= limit:
+                break
+
+            entry_id = f"hn_{story.id}"
+            if self.storage.is_processed(entry_id):
+                continue
+
+            try:
+                url = story.url or f"https://news.ycombinator.com/item?id={story.id}"
+
+                full_article = None
+                if story.url:
+                    logger.info(f"Fetching full article from {url}")
+                    full_article = await self.article_fetcher.fetch_full_article(url)
+
+                if not full_article:
+                    full_article = story.title
+
+                translated_full = await self.translator.translate_full_text(full_article)
+                bullets = await self.translator.summarize_to_bullets(full_article)
+
+                publish_date = datetime.fromtimestamp(story.time, tz=timezone.utc)
+
+                item = ProcessedItem(
+                    item_id=entry_id,
+                    slug=f"hn_{story.id}",
+                    title=story.title or "Без названия",
+                    url=url,
+                    publish_date=publish_date,
+                    content=translated_full,
+                    item_type="hn",
+                )
+
+                await self._deliver_item(item, bullets)
+                if not self.telegram_client.dry_run:
+                    self.storage.mark_processed(item.item_id, item.item_type, item.publish_date.isoformat())
+                processed_count += 1
+            except Exception as e:
+                logger.error(f"Failed to process HN story '{story.title}': {e}", exc_info=True)
+                continue
+
+        return processed_count
+
     async def _deliver_item(self, item: ProcessedItem, bullets: List[str]) -> None:
-        header = "#Research" if item.item_type == "research" else "#Newsletter"
+        if item.item_type == "research":
+            header = "#Research"
+        elif item.item_type == "newsletter":
+            header = "#Newsletter"
+        else:
+            header = "#HackerNews"
+
         bullet_lines = "\n".join(f"- {bullet}" for bullet in bullets[:7])
         message = f"{header}\nTLDR (RU):\n{bullet_lines}\nOriginal: {item.url}"
 

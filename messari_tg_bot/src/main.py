@@ -6,6 +6,7 @@ from pathlib import Path
 from .article_fetcher import ArticleFetcher
 from .config import load_settings
 from .docx_renderer import DocxRenderer
+from .hn_client import HNClient
 from .orchestrator import Orchestrator
 from .rss_client import RSSClient
 from .storage import Storage
@@ -43,6 +44,7 @@ async def async_main() -> None:
     telegram_client = TelegramClient(
         bot_token=settings.telegram_bot_token, chat_id=settings.telegram_chat_id, dry_run=args.dry_run
     )
+    hn_client = HNClient() if settings.hn_enabled else None
 
     orchestrator = Orchestrator(
         settings=settings,
@@ -52,6 +54,7 @@ async def async_main() -> None:
         translator=translator,
         docx_renderer=docx_renderer,
         telegram_client=telegram_client,
+        hn_client=hn_client,
     )
 
     if args.once:

@@ -25,6 +25,8 @@ class Settings:
     newsletter_asset_ids: List[str] = field(default_factory=list)
     translator_mode: str = "dev"
     environment: str = "dev"
+    hn_enabled: bool = False
+    hn_max_stories: int = 5
 
 
 def _parse_csv(value: str) -> List[str]:
@@ -74,6 +76,8 @@ def load_settings() -> Settings:
         newsletter_asset_ids=_parse_csv(os.getenv("NEWSLETTER_ASSET_IDS", "")),
         translator_mode=os.getenv("TRANSLATOR_MODE", "dev"),
         environment=os.getenv("ENVIRONMENT", "dev"),
+        hn_enabled=os.getenv("HN_ENABLED", "false").lower() in ("true", "1", "yes"),
+        hn_max_stories=int(os.getenv("HN_MAX_STORIES", "5")),
     )
 
 
