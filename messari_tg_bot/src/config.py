@@ -20,19 +20,17 @@ SOURCE_HASHTAGS: Dict[str, str] = {
     "ycombinator.com": "#HackerNews",
 }
 
-# Keywords to filter out from Hacker News (political, music, etc.)
+# Keywords to filter out from Hacker News (political, music, sports, etc.)
 HN_FILTER_KEYWORDS = [
     "trump", "politics", "political", "congress", "senate", "president",
     "election", "republican", "democrat", "biden", "harris",
     "music", "song", "album", "band", "concert", "spotify",
     "movie", "film", "actor", "actress", "hollywood",
     "sports", "football", "basketball", "soccer", "baseball",
-    "crypto", "bitcoin", "ethereum", "blockchain", "defi", "nft",
-    "finance", "stock", "market", "trading", "investment",
 ]
 
-# Keywords that indicate AI/tech content
-HN_AI_KEYWORDS = [
+# Keywords that indicate AI/tech/crypto content
+HN_ACCEPTED_KEYWORDS = [
     "ai", "artificial intelligence", "machine learning", "ml", "llm",
     "gpt", "chatgpt", "openai", "anthropic", "claude", "gemini",
     "deep learning", "neural", "model", "training", "inference",
@@ -43,6 +41,8 @@ HN_AI_KEYWORDS = [
     "security", "privacy", "encryption", "cyber",
     "quantum", "compute", "chip", "gpu", "nvidia", "amd",
     "open source", "linux", "kubernetes", "docker",
+    "crypto", "bitcoin", "ethereum", "blockchain", "defi", "nft",
+    "finance", "stock", "market", "trading", "investment",
 ]
 
 
@@ -58,14 +58,14 @@ def should_skip_hn_post(title: str) -> bool:
     """Check if HN post should be skipped based on filters."""
     title_lower = title.lower()
     
-    # Check for filter keywords (politics, music, etc.)
+    # Check for filter keywords (politics, music, sports, etc.)
     for keyword in HN_FILTER_KEYWORDS:
         if keyword in title_lower:
             return True
     
-    # If no AI/tech keywords found, skip
-    has_ai_keyword = any(keyword in title_lower for keyword in HN_AI_KEYWORDS)
-    return not has_ai_keyword
+    # If no accepted keywords (AI/tech/crypto/finance) found, skip
+    has_accepted_keyword = any(keyword in title_lower for keyword in HN_ACCEPTED_KEYWORDS)
+    return not has_accepted_keyword
 
 
 @dataclass
@@ -88,7 +88,7 @@ class Settings:
     translator_mode: str = "dev"
     environment: str = "dev"
     hn_enabled: bool = False
-    hn_max_stories: int =5
+    hn_max_stories: int = 5
 
 
 def _parse_csv(value: str) -> List[str]:
