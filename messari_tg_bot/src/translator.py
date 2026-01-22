@@ -41,12 +41,13 @@ class Translator:
             return bullets
 
         prompt = (
-            f"Create {min_bullets}-{max_bullets} bullet point summary in Russian language ONLY. "
-            f"Each bullet should be 1-2 sentences, concise and fact-focused. "
-            f"Preserve key facts and numbers. Output ONLY in Russian, no English words. "
-            f"Start each bullet with '- ' (dash and space). "
-            f"IMPORTANT: Skip disclaimers, legal notices, advertisements, and promotional content. "
-            f"Focus only on the main content and key insights."
+            f"Create {min_bullets}-{max_bullets} ultra-short bullet points in Russian language ONLY. "
+            f"Each bullet must be ONLY ONE short sentence (maximum 10-15 words). "
+            f"Be extremely concise. No explanations. No long sentences. "
+            f"Focus only on the main point, no details. "
+            f"Start each bullet with -  (dash and space). "
+            f"IMPORTANT: Skip disclaimers, legal notices, advertisements. "
+            f"Just the key facts."
         )
         response = await self._call_openrouter(
             model=self.tldr_model, system=prompt, user=text, usage_include=True
