@@ -28,7 +28,17 @@ class ArticleFetcher:
                         headers={
                             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                                         "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                        "Chrome/120.0.0.0 Safari/537.36"
+                                        "Chrome/120.0.0.0 Safari/537.36",
+                            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                            "Accept-Language": "en-US,en;q=0.5",
+                            "Accept-Encoding": "gzip, deflate, br",
+                            "Connection": "keep-alive",
+                            "Upgrade-Insecure-Requests": "1",
+                            "Sec-Fetch-Dest": "document",
+                            "Sec-Fetch-Mode": "navigate",
+                            "Sec-Fetch-Site": "none",
+                            "Sec-Fetch-User": "?1",
+                            "Cache-Control": "max-age=0"
                         }
                     )
                     response.raise_for_status()
@@ -56,6 +66,17 @@ class ArticleFetcher:
                     await asyncio.sleep(wait_time)
                 else:
                     logger.error(f"Failed to fetch article after {max_retries} attempts: {e}")
+                    return None
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 403 and attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    logger.warning(
+                        f"403 Forbidden error (attempt {attempt + 1}/{max_retries}) for {url}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"HTTP error {e.response.status_code} fetching article from {url}: {e}")
                     return None
             except Exception as e:
                 logger.error(f"Error fetching article from {url}: {e}", exc_info=True)

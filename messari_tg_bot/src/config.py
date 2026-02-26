@@ -7,7 +7,6 @@ from typing import List, Optional, Dict
 from dotenv import load_dotenv
 
 
-# Source URL to hashtag mapping
 SOURCE_HASHTAGS: Dict[str, str] = {
     "messari.substack.com": "#Messari",
     "anchor.fm": "#AnchorFm",
@@ -20,7 +19,6 @@ SOURCE_HASHTAGS: Dict[str, str] = {
     "ycombinator.com": "#HackerNews",
 }
 
-# Keywords to filter out from Hacker News (political, music, sports, etc.)
 HN_FILTER_KEYWORDS = [
     "trump", "politics", "political", "congress", "senate", "president",
     "election", "republican", "democrat", "biden", "harris",
@@ -29,7 +27,6 @@ HN_FILTER_KEYWORDS = [
     "sports", "football", "basketball", "soccer", "baseball",
 ]
 
-# Keywords that indicate AI/tech/crypto content
 HN_ACCEPTED_KEYWORDS = [
     "ai", "artificial intelligence", "machine learning", "ml", "llm",
     "gpt", "chatgpt", "openai", "anthropic", "claude", "gemini",
@@ -47,7 +44,6 @@ HN_ACCEPTED_KEYWORDS = [
 
 
 def get_source_hashtag(url: str) -> str:
-    """Get hashtag for a source URL."""
     for source_domain, hashtag in SOURCE_HASHTAGS.items():
         if source_domain in url.lower():
             return hashtag
@@ -55,15 +51,10 @@ def get_source_hashtag(url: str) -> str:
 
 
 def should_skip_hn_post(title: str) -> bool:
-    """Check if HN post should be skipped based on filters."""
     title_lower = title.lower()
-    
-    # Check for filter keywords (politics, music, sports, etc.)
     for keyword in HN_FILTER_KEYWORDS:
         if keyword in title_lower:
             return True
-    
-    # If no accepted keywords (AI/tech/crypto/finance) found, skip
     has_accepted_keyword = any(keyword in title_lower for keyword in HN_ACCEPTED_KEYWORDS)
     return not has_accepted_keyword
 
@@ -75,9 +66,7 @@ class Settings:
     telegram_channel_id: Optional[str] = None
     research_feeds: List[str] = field(default_factory=list)
     newsletter_feeds: List[str] = field(default_factory=list)
-    openrouter_api_key: str = ""
-    openrouter_translate_model: str = "mistralai/mixtral-8x7b-instruct"
-    openrouter_tldr_model: str = "mistralai/mixtral-8x7b-instruct"
+    deepseek_api_key: str = ""
     poll_interval_minutes: int = 10
     bootstrap_lookback_hours: int = 24
     max_items_per_run: int = 20
@@ -89,6 +78,9 @@ class Settings:
     environment: str = "dev"
     hn_enabled: bool = False
     hn_max_stories: int = 5
+    digest_enabled: bool = True
+    digest_buffer_hours: int = 4
+    digest_urgent_threshold: int = 70
 
 
 def _parse_csv(value: str) -> List[str]:
@@ -125,11 +117,7 @@ def load_settings() -> Settings:
         telegram_channel_id=os.getenv("TELEGRAM_CHANNEL_ID"),
         research_feeds=research_feeds,
         newsletter_feeds=newsletter_feeds,
-        openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
-        openrouter_translate_model=os.getenv(
-            "OPENROUTER_TRANSLATE_MODEL", "mistralai/mixtral-8x7b-instruct"
-        ),
-        openrouter_tldr_model=os.getenv("OPENROUTER_TLDR_MODEL", "mistralai/mixtral-8x7b-instruct"),
+        deepseek_api_key=os.getenv("DEEPSEEK_API_KEY", ""),
         poll_interval_minutes=int(os.getenv("POLL_INTERVAL_MIN", "10")),
         bootstrap_lookback_hours=int(os.getenv("BOOTSTRAP_LOOKBACK_HOURS", "24")),
         max_items_per_run=int(os.getenv("MAX_ITEMS_PER_RUN", "20")),
@@ -141,6 +129,9 @@ def load_settings() -> Settings:
         environment=os.getenv("ENVIRONMENT", "dev"),
         hn_enabled=os.getenv("HN_ENABLED", "false").lower() in ("true", "1", "yes"),
         hn_max_stories=int(os.getenv("HN_MAX_STORIES", "5")),
+        digest_enabled=os.getenv("DIGEST_ENABLED", "true").lower() in ("true", "1", "yes"),
+        digest_buffer_hours=int(os.getenv("DIGEST_BUFFER_HOURS", "4")),
+        digest_urgent_threshold=int(os.getenv("DIGEST_URGENT_THRESHOLD", "70")),
     )
 
 

@@ -8,6 +8,7 @@ from .config import load_settings
 from .hn_client import HNClient
 from .orchestrator import Orchestrator
 from .rss_client import RSSClient
+from .scheduler import DigestScheduler
 from .storage import Storage
 from .telegram_client import TelegramClient
 from .translator import Translator
@@ -34,9 +35,7 @@ async def async_main() -> None:
     article_fetcher = ArticleFetcher()
     translator = Translator(
         mode=settings.translator_mode,
-        openrouter_api_key=settings.openrouter_api_key,
-        translate_model=settings.openrouter_translate_model,
-        tldr_model=settings.openrouter_tldr_model,
+        deepseek_api_key=settings.deepseek_api_key,
     )
     telegram_client = TelegramClient(
         bot_token=settings.telegram_bot_token,
